@@ -1,3 +1,8 @@
+<?php
+session_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -24,7 +29,7 @@
             return openssl_decrypt($encrypted_data, 'aes-256-cbc', $key, 0, $iv);
         }
 
-        // Menambhkan data & melakukan enkripsi pada name dan email
+        // Menambahkan data & melakukan enkripsi pada name dan email
         if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
             $name = encryptData($_POST["name"], ENCRYPTION_KEY);
             $email = encryptData($_POST["email"], ENCRYPTION_KEY);
@@ -38,7 +43,7 @@
             }
         }
 
-        // penghapusan data
+        // Penghapusan data
         if (isset($_GET['delete'])) {
             $id = $_GET['delete'];
             $sql = "DELETE FROM users WHERE id=$id";
@@ -48,6 +53,22 @@
             } else {
                 echo "<div class='error'>Error: " . $sql . "<br>" . $conn->error . "</div>";
             }
+        }
+
+        // Memeriksa password untuk menampilkan daftar pengguna
+        $show_users = false;
+        if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['show_users'])) {
+            $password = $_POST["password"];
+            if ($password === 'Ujicoba123#') {
+                $_SESSION['show_users'] = true;
+                $show_users = true;
+            } else {
+                echo "<div class='error'>Incorrect password</div>";
+            }
+        }
+
+        if (isset($_SESSION['show_users']) && $_SESSION['show_users'] === true) {
+            $show_users = true;
         }
         ?>
 
@@ -60,35 +81,43 @@
         </form>
 
         <h2>Users List</h2>
-        <table>
-            <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Action</th>
-            </tr>
-            <?php
-            $sql = "SELECT id, name, email FROM users";
-            $result = $conn->query($sql);
+        <?php if (!$show_users): ?>
+            <form method="POST" action="">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required><br><br>
+                <button type="submit" name="show_users">Show Users</button>
+            </form>
+        <?php else: ?>
+            <table>
+                <tr>
+                    <th>ID</th>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Action</th>
+                </tr>
+                <?php
+                $sql = "SELECT id, name, email FROM users";
+                $result = $conn->query($sql);
 
-            if ($result->num_rows > 0) {
-                while($row = $result->fetch_assoc()) {
-                    $decrypted_name = decryptData($row["name"], ENCRYPTION_KEY);
-                    $decrypted_email = decryptData($row["email"], ENCRYPTION_KEY);
-                    echo "<tr>
-                            <td>" . $row["id"]. "</td>
-                            <td>" . htmlspecialchars($decrypted_name) . "</td>
-                            <td>" . htmlspecialchars($decrypted_email) . "</td>
-                            <td><a href='?delete=" . $row["id"] . "' onclick='return confirm(\"Are you sure you want to delete this record?\")'>Delete</a></td>
-                          </tr>";
+                if ($result->num_rows > 0) {
+                    while($row = $result->fetch_assoc()) {
+                        $decrypted_name = decryptData($row["name"], ENCRYPTION_KEY);
+                        $decrypted_email = decryptData($row["email"], ENCRYPTION_KEY);
+                        echo "<tr>
+                                <td>" . $row["id"]. "</td>
+                                <td>" . htmlspecialchars($decrypted_name) . "</td>
+                                <td>" . htmlspecialchars($decrypted_email) . "</td>
+                                <td><a href='?delete=" . $row["id"] . "' onclick='return confirm(\"Are you sure you want to delete this record?\")'>Delete</a></td>
+                              </tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='4'>No users found</td></tr>";
                 }
-            } else {
-                echo "<tr><td colspan='4'>No users found</td></tr>";
-            }
 
-            $conn->close();
-            ?>
-        </table>
+                $conn->close();
+                ?>
+            </table>
+        <?php endif; ?>
     </div>
 </body>
 </html>
