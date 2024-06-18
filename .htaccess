@@ -1,0 +1,3 @@
+<Files "encryption_key.php">
+    Require all denied
+</Files>
