@@ -59,7 +59,7 @@ ini_set('display_errors', 1);
         $show_users = false;
         if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['show_users'])) {
             $password = $_POST["password"];
-            if ($password === 'Ujicoba123#') {
+            if ($password === 'ujicoba') {  // Ganti dengan kata sandi Anda
                 $_SESSION['show_users'] = true;
                 $show_users = true;
             } else {
