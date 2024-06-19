@@ -1,3 +1,4 @@
 <?php
-define('ENCRYPTION_KEY', 'hanyaujicoba');
+//kunci enkripsi//
+define('ENCRYPTION_KEY', 'your-secret-key-here');
 ?>
