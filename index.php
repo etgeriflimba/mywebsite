@@ -3,71 +3,67 @@ session_start();
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
+require_once 'vendor/autoload.php';
+
+$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+$dotenv->load();
+
+$encryptionKey = $_ENV['ENCRYPTION_KEY'];
+if (!$encryptionKey) {
+    die("Kunci enkripsi tidak diatur dalam file .env.");
+}
+
 include 'config.php';
+include 'function.php';
 
-function encryptData($data, $key) {
-    $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('aes-256-cbc'));
-    $encrypted = openssl_encrypt($data, 'aes-256-cbc', $key, 0, $iv);
-    return base64_encode($encrypted . '::' . base64_encode($iv));
-}
+$show_users = false;
 
-function decryptData($data, $key) {
-    $decoded_data = base64_decode($data);
-    if ($decoded_data === false) {
-        return null; // Return null if base64 decoding fails
-    }
-    $parts = explode('::', $decoded_data, 2);
-    if (count($parts) === 2) {
-        $encrypted_data = $parts[0];
-        $iv = base64_decode($parts[1]);
-        if ($iv !== false && strlen($iv) === openssl_cipher_iv_length('aes-256-cbc')) {
-            $decrypted = openssl_decrypt($encrypted_data, 'aes-256-cbc', $key, 0, $iv);
-            return $decrypted !== false ? $decrypted : null; // Return decrypted data or null if decryption fails
-        }
-    }
-    return null; // Return null if decryption fails
-}
+
+
 
 // Penambahan data
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['submit'])) {
-    $name = $_POST["name"]; // Name tidak dienkripsi
-    $email = encryptData($_POST["email"], ENCRYPTION_KEY); // Email dienkripsi
+    $name = $_POST["name"]; // Nama tidak dienkripsi
+    $email = encryptData($_POST["email"], $encryptionKey); // Email dienkripsi
     $phone = $_POST["phone"];
     $company = $_POST["company"];
     $city = $_POST["city"];
-    $card_number = encryptData($_POST["card_number"], ENCRYPTION_KEY); // Card Number dienkripsi
+    $card_number = encryptData($_POST["card_number"], $encryptionKey); // Nomor Kartu dienkripsi
 
-    $sql = "INSERT INTO users (name, email, phone, company, city, card_number) 
-            VALUES ('$name', '$email', '$phone', '$company', '$city', '$card_number')";
+    $stmt = $conn->prepare("INSERT INTO users (name, email, phone, company, city, card_number) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt->bind_param("ssssss", $name, $email, $phone, $company, $city, $card_number);
 
-    if ($conn->query($sql) === TRUE) {
-        echo "<div class='success'>New record created successfully</div>";
+    if ($stmt->execute()) {
+        echo "<div class='success'>Data baru berhasil ditambahkan</div>";
     } else {
-        echo "<div class='error'>Error: " . $sql . "<br>" . $conn->error . "</div>";
+        echo "<div class='error'>Error: " . $stmt->error . "</div>";
     }
+
+    $stmt->close();
 }
 
 // Penghapusan data
 if (isset($_GET['delete'])) {
     $id = $_GET['delete'];
-    $sql = "DELETE FROM users WHERE id=$id";
+    $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
+    $stmt->bind_param("i", $id);
 
-    if ($conn->query($sql) === TRUE) {
-        echo "<div class='success'>Record deleted successfully</div>";
+    if ($stmt->execute()) {
+        echo "<div class='success'>Data berhasil dihapus</div>";
     } else {
-        echo "<div class='error'>Error: " . $sql . "<br>" . $conn->error . "</div>";
+        echo "<div class='error'>Error: " . $stmt->error . "</div>";
     }
+
+    $stmt->close();
 }
 
-// Memeriksa password untuk menampilkan daftar pengguna
-$show_users = false;
+// Memeriksa password untuk menampilkan daftar admin
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['show_users'])) {
     $password = $_POST["password"];
-    if ($password === 'ujicoba') {  // Ganti dengan kata sandi Anda
+    if ($password === 'ujicoba') {  
         $_SESSION['show_users'] = true;
-        $show_users = true;
     } else {
-        echo "<div class='error'>Incorrect password</div>";
+        echo "<div class='error'>Password salah</div>";
     }
 }
 
@@ -77,18 +73,18 @@ if (isset($_SESSION['show_users']) && $_SESSION['show_users'] === true) {
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Website</title>
+    <title>Website Sederhana</title>
     <link rel="stylesheet" href="style.css"> <!-- Link ke file CSS eksternal -->
 </head>
 <body>
     <div class="container">
-        <h1>Simple Website</h1>
+        <h1>KEAMANAN SISTEM</h1>
 
-        <h2>Add New User</h2>
+        <h2>INPUT DATA</h2>
         <form method="POST" action="">
             <label for="name">Name:</label>
             <input type="text" id="name" name="name" required><br><br>
@@ -113,7 +109,7 @@ if (isset($_SESSION['show_users']) && $_SESSION['show_users'] === true) {
                 <button type="submit" name="show_users">Show Users</button>
             </form>
         <?php else: ?>
-            <h2>Users List</h2>
+            <h2>DAFTAR DATA BERHASIL DIINPUT</h2>
             <table>
                 <tr>
                     <th>ID</th>
@@ -130,10 +126,9 @@ if (isset($_SESSION['show_users']) && $_SESSION['show_users'] === true) {
                 $result = $conn->query($sql);
 
                 if ($result->num_rows > 0) {
-                    while($row = $result->fetch_assoc()) {
-                        // Handle decryption only for encrypted fields
-                        $decrypted_email = decryptData($row["email"], ENCRYPTION_KEY);
-                        $decrypted_card_number = decryptData($row["card_number"], ENCRYPTION_KEY);
+                    while ($row = $result->fetch_assoc()) {
+                        $decrypted_email = decryptData($row["email"], $encryptionKey);
+                        $decrypted_card_number = decryptData($row["card_number"], $encryptionKey);
 
                         echo "<tr>
                                 <td>" . $row["id"] . "</td>
@@ -143,11 +138,11 @@ if (isset($_SESSION['show_users']) && $_SESSION['show_users'] === true) {
                                 <td>" . (isset($row["company"]) ? htmlspecialchars($row["company"]) : '') . "</td>
                                 <td>" . (isset($row["city"]) ? htmlspecialchars($row["city"]) : '') . "</td>
                                 <td>" . ($decrypted_card_number !== null ? htmlspecialchars($decrypted_card_number) : 'Decryption Error') . "</td>
-                                <td><a href='?delete=" . $row["id"] . "' onclick='return confirm(\"Are you sure you want to delete this record?\")'>Delete</a></td>
+                                <td><a href='?delete=" . $row["id"] . "' onclick='return confirm(\"Anda yakin ingin menghapus data ini?\")'>Delete</a></td>
                               </tr>";
                     }
                 } else {
-                    echo "<tr><td colspan='8'>No users found</td></tr>";
+                    echo "<tr><td colspan='8'>Tidak ada pengguna ditemukan</td></tr>";
                 }
 
                 $conn->close();
